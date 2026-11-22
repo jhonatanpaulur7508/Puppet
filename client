@@ -1,0 +1,107 @@
+# Configuración del cliente Puppet (client.unir.local)
+
+Pasos reales ejecutados para registrar el nodo cliente contra el master
+`server.unir.local` (Puppet 8, CentOS 8, entorno Vagrant de UNIR).
+
+> **Regla de oro:** ejecuta TODO el flujo de Puppet como **root**. El usuario
+> `vagrant` usa un almacén SSL propio en `~/.puppetlabs/`, distinto al de root
+> en `/etc/puppetlabs/puppet/ssl`. Mezclarlos provoca errores de certificado.
+
+---
+
+## 1. Hostname del cliente
+
+```bash
+sudo hostnamectl set-hostname client.unir.local
+hostname -f    # debe devolver: client.unir.local
+```
+
+## 2. Resolución de nombres (/etc/hosts)
+
+Dejar el FQDN como **primer** nombre de cada línea (ese orden determina el
+resultado de `hostname -f`):
+
+```bash
+sudo vi /etc/hosts
+```
+
+```
+192.168.56.11 server.unir.local puppetmaster puppet
+192.168.56.12 client.unir.local puppetclient
+```
+
+Verificar:
+
+```bash
+ping -c1 server.unir.local
+getent hosts server.unir.local    # -> 192.168.56.11
+```
+
+## 3. Instalar el agente de Puppet
+
+```bash
+sudo yum install -y https://yum.puppet.com/puppet8-release-el-8.noarch.rpm
+sudo yum install -y puppet-agent
+```
+
+## 4. Apuntar el agente al master
+
+```bash
+sudo puppet config set server server.unir.local --section main
+puppet config print server --section main    # -> server.unir.local
+```
+
+## 5. Habilitar y arrancar el servicio
+
+```bash
+sudo systemctl start puppet
+sudo systemctl status puppet
+```
+
+## 6. Solicitar certificado al master
+
+Ejecutar como root (el SSL vive en `/etc/puppetlabs/puppet/ssl`):
+
+```bash
+sudo su -
+puppet agent --test
+# Quedará como "has not been signed yet" -> es normal, se firma en el master
+```
+
+## 7. (En el MASTER) firmar la petición
+
+```bash
+# en server.unir.local, como root
+puppetserver ca list --all                          # confirmar el fingerprint
+puppetserver ca sign --certname client.unir.local
+```
+
+## 8. (En el cliente, como root) aplicar el catálogo
+
+```bash
+puppet agent --test
+# -> Applied catalog in X seconds
+```
+
+---
+
+## Problemas comunes (Troubleshooting)
+
+- **`hostname -f` devuelve el nombre corto equivocado**: el FQDN debe ir
+  PRIMERO en la línea de `/etc/hosts`.
+
+- **`Server hostname 'puppet' did not match server certificate`**: el agente
+  usaba el nombre por defecto `puppet`. Fijar `server = server.unir.local`.
+
+- **`The certificate for 'CN=client.unir.local' does not match its private key`**:
+  causado por mezclar usuarios (vagrant vs root). Ejecutar TODO como root.
+
+- **Servicio `puppet` masked**: `sudo systemctl unmask puppet` antes de arrancarlo.
+
+### Reiniciar el ciclo de certificado (cuando clave y cert no coinciden)
+
+1. Cliente (root): `rm -rf /etc/puppetlabs/puppet/ssl`
+2. Master (root): `puppetserver ca clean --certname client.unir.local`
+3. Cliente (root): `puppet agent --test`   (reenvía la petición)
+4. Master (root): `puppetserver ca sign --certname client.unir.local`
+5. Cliente (root): `puppet agent --test`   (aplica el catálogo)

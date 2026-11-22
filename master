@@ -1,0 +1,141 @@
+# Configuración del master Puppet (server.unir.local)
+
+Pasos reales ejecutados para instalar y configurar el Puppet Server
+(Puppet 8, CentOS 8, entorno Vagrant de UNIR). IP del master: `192.168.56.11`.
+
+> **Regla de oro:** ejecuta la gestión de certificados (`puppetserver ca ...`)
+> como **root**. El FQDN del master debe ir PRIMERO en `/etc/hosts`, porque de
+> ahí sale `hostname -f`, y ese nombre acaba en el certificado del servidor.
+
+---
+
+## 1. Hostname del master
+
+```bash
+sudo hostnamectl set-hostname server.unir.local
+hostname -f    # debe devolver: server.unir.local
+```
+
+## 2. Resolución de nombres (/etc/hosts)
+
+El FQDN debe ir como **primer** nombre de la línea (ese orden determina
+`hostname -f`). Elimina líneas sobrantes como `127.0.2.1 puppetmaster`:
+
+```bash
+sudo vi /etc/hosts
+```
+
+```
+192.168.56.11 server.unir.local puppetmaster puppet
+192.168.56.12 client.unir.local puppetclient
+```
+
+Verificar:
+
+```bash
+hostname -f                       # -> server.unir.local
+getent hosts 192.168.56.11        # debe empezar por server.unir.local
+ping -c1 server.unir.local
+```
+
+## 3. Instalar Puppet Server
+
+```bash
+sudo yum install -y https://yum.puppet.com/puppet8-release-el-8.noarch.rpm
+sudo yum clean all
+sudo yum makecache
+sudo yum install -y puppetserver
+```
+
+## 4. Configurar memoria de la JVM (opcional)
+
+Ajustar `JAVA_ARGS` según la RAM de la VM:
+
+```bash
+sudo vi /etc/sysconfig/puppetserver
+```
+
+## 5. Configurar puppet.conf
+
+```bash
+sudo vi /etc/puppetlabs/puppet/puppet.conf
+```
+
+Secciones relevantes:
+
+```ini
+[master]
+dns_alt_names = server.unir.local,server
+
+[main]
+certname = server.unir.local
+server   = server.unir.local
+environment = production
+```
+
+Verificar:
+
+```bash
+puppet config print server certname --section main
+# -> server.unir.local en ambos
+```
+
+## 6. Inicializar la CA
+
+```bash
+sudo puppetserver ca setup
+```
+
+## 7. Arrancar y habilitar el servicio
+
+```bash
+sudo systemctl start puppetserver
+sudo systemctl status puppetserver
+```
+
+## 8. Abrir el puerto 8140 en el firewall
+
+```bash
+sudo firewall-cmd --permanent --add-port=8140/tcp
+sudo firewall-cmd --reload
+sudo firewall-cmd --list-all      # confirmar: ports: 8140/tcp
+```
+
+## 9. Firmar el certificado del cliente
+
+Cuando el cliente haya ejecutado `puppet agent --test` y enviado su petición:
+
+```bash
+sudo su -
+puppetserver ca list --all                          # ver peticiones pendientes
+puppetserver ca sign --certname client.unir.local   # firmar
+```
+
+---
+
+## Problemas comunes (Troubleshooting)
+
+- **`puppetserver ca ...` se conecta a `https://server.:8140`**: nombre de
+  servidor mal configurado (quedaba `server.`). Revisar `puppet.conf` y dejar
+  `server = server.unir.local` y `certname = server.unir.local`.
+
+- **`SSL ... certificate verify failed (hostname mismatch)`**: el certificado
+  del master se emitió con un nombre viejo. Asegurar que `dns_alt_names` incluye
+  `server.unir.local` antes de generar la CA.
+
+- **La CA ya existe y `ca setup` no sobrescribe**: la CA real vive en
+  `/etc/puppetlabs/puppetserver/ca/` (no en `/etc/puppetlabs/puppet/ssl`).
+  No borrarla salvo que quieras invalidar TODOS los certificados.
+
+- **Limpiar un certificado viejo que sobra**:
+  `puppetserver ca clean --certname <nombre>`
+
+### Ciclo de firma de un cliente (orden correcto)
+
+1. Cliente (root): `puppet agent --test`   (envía la petición)
+2. Master (root): `puppetserver ca list --all`   (confirmar fingerprint)
+3. Master (root): `puppetserver ca sign --certname client.unir.local`
+4. Cliente (root): `puppet agent --test`   (aplica el catálogo)
+
+> El error `409: Cannot sign ... without a certificate request` significa que
+> no hay petición pendiente: el cliente debe reenviarla antes de firmar.
