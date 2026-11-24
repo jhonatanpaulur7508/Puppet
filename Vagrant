@@ -1,0 +1,21 @@
+Vagrant.configure("2") do |config|
+  config.vm.box = "generic/centos8"
+
+  config.vm.define "centos8-1" do |machine|
+    machine.vm.hostname = "centos8-1"
+    machine.vm.network "private_network", ip: "192.168.56.11"
+    machine.vm.provider "virtualbox" do |vb|
+      vb.memory = 1024
+      vb.cpus = 2
+    end
+  end
+
+  config.vm.define "centos8-2" do |machine|
+    machine.vm.hostname = "centos8-2"
+    machine.vm.network "private_network", ip: "192.168.56.12"
+    machine.vm.provider "virtualbox" do |vb|
+      vb.memory = 1024
+      vb.cpus = 2
+    end
+  end
+end
