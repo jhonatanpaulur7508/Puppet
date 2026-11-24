@@ -1,0 +1,32 @@
+C:\Users\JHONATAN\Desktop\UNIR Herramientas de Despliegue>vagrant ssh centos8-1
+Last login: Sun Nov 22 23:17:09 2026 from 10.0.2.2
+[vagrant@server.unir.local ~]$ cat /etc/hosts
+127.0.0.1   localhost localhost.localdomain localhost4 localhost4.localdomain4
+::1         localhost localhost.localdomain localhost6 localhost6.localdomain6
+
+127.0.0.1 centos8.localdomain
+
+127.0.1.1 centos8-1 centos8-1
+
+
+192.168.56.12 puppetclient client.unir.local
+#192.168.56.11 puppetmaster puppet server.unir.local
+192.168.56.11 server.unir.local puppetmaster puppet
+
+
+
+
+
+
+
+
+
+
+# The following lines are desirable for IPv6 capable hosts
+::1     ip6-localhost ip6-loopback
+fe00::0 ip6-localnet
+ff00::0 ip6-mcastprefix
+ff02::1 ip6-allnodes
+ff02::2 ip6-allrouters
+#127.0.2.1 puppetmaster puppetmaster
+[vagrant@server.unir.local ~]$
