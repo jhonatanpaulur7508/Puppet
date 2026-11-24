@@ -1,0 +1,15 @@
+C:\Users\JHONATAN\Desktop\UNIR Herramientas de Despliegue>vagrant ssh centos8-2
+Last login: Tue Nov 24 05:35:39 2026 from 10.0.2.2
+[vagrant@client.unir.local ~]$ cat /etc/puppetlabs/puppet/puppet.conf
+# This file can be used to override the default puppet settings.
+# See the following links for more details on what settings are available:
+# - https://puppet.com/docs/puppet/latest/config_important_settings.html
+# - https://puppet.com/docs/puppet/latest/config_about_settings.html
+# - https://puppet.com/docs/puppet/latest/config_file_main.html
+# - https://puppet.com/docs/puppet/latest/configuration.html
+[main]
+certname = client.unir.local
+server = server.unir.local
+environment = production
+runinterval = 1h
+[vagrant@client.unir.local ~]$
